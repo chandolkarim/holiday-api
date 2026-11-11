@@ -91,6 +91,50 @@ node scripts/dev.mjs --mock  # 연습 모드 → 브라우저에서 http://local
 | `CACHE_OK` | 데이터가 바뀌는 주기에 맞춘 캐시 시간(실시간 측정값은 짧게, 하루 단위 자료는 길게) |
 | `index.html` | `showList`에서 항목을 그리는 부분 |
 
+## 7. 한 줄 방명록 (10주차 · Supabase)
+
+같은 Vercel 프로젝트에 Supabase 표 하나로 한 줄 방명록을 더했습니다. 방문자는 글을 **읽기만 직접** 할 수 있고, 글쓰기는 함수가 입력을 검사한 뒤 서버 전용 secret 키로만 합니다.
+
+```text
+방문자가 /guestbook.html 열기 → fetch('/api/guestbook')            (GET, 최근 20개)
+  → api/guestbook.js: publishable 키로 Supabase 읽기 → RLS '누구나 읽기' 정책이 select만 허락
+방문자가 이름·한 줄 인사 입력 → fetch('/api/guestbook', POST JSON)
+  → api/guestbook.js: 입력 검사(이름 1~20자, 내용 1~200자, 한 줄) → 통과하면 secret 키로 insert → 201
+  → 잘못된 입력은 Supabase를 부르기 전에 400
+```
+
+| 파일 | 역할 |
+|---|---|
+| `supabase/guestbook.sql` | 표 `public.guestbook`, check 제약, RLS, 정책 '누구나 읽기', 권한(anon·authenticated는 select만, service_role은 select·insert) |
+| `api/guestbook.js` | GET 최근 20개, POST 입력 검사 뒤 저장. 400/405/500(`NO_KEY`)/502, 응답은 `Cache-Control: no-store` |
+| `guestbook.html` | 글쓰기 폼과 목록. 네 가지 상태(불러오는 중 · 글 있음 · 글 없음 · 오류), 방문자 글은 `textContent`로만 넣습니다 |
+| `tests/guestbook.test.mjs` | 입력 검사 경계값, 키 종류, 400/500/502, 응답에 키가 없는지 확인(가짜 fetch) |
+
+**환경 변수** (Vercel **Settings → Environment Variables**, Production·Preview, 넣은 뒤 **Redeploy**)
+
+| 이름 | 값 | 쓰는 곳 |
+|---|---|---|
+| `SUPABASE_URL` | `https://teigrgczkmxgourykjhz.supabase.co` | 두 요청 모두 |
+| `SUPABASE_PUBLISHABLE_KEY` | Supabase → Project Settings → API Keys의 publishable 키 (`sb_publishable_…`) | GET(읽기) |
+| `SUPABASE_SECRET_KEY` | 같은 화면의 secret 키 (`sb_secret_…`), **서버 전용** | POST(쓰기), `api/guestbook.js` 안에서만 |
+
+키를 넣기 전 첫 배포에서 `/api/guestbook`이 500(`NO_KEY`)을 돌려주는 것은 정상입니다.
+
+**DB 확인 (2026-11-11, Supabase MCP)**: RLS 켜짐(`relrowsecurity = true`) · 정책 1개 `누구나 읽기` (SELECT to anon, authenticated using true) · 권한 anon=SELECT, authenticated=SELECT, service_role=SELECT·INSERT(+기본 REFERENCES·TRIGGER·TRUNCATE) · check 제약 `guestbook_name_check`, `guestbook_message_check`.
+이 프로젝트는 새 표에 service_role의 select·insert 권한을 자동으로 주지 않아서 SQL에 따로 넣었습니다.
+
+### 검증 기록 (운영 주소)
+
+키를 넣고 다시 배포한 뒤 채웁니다.
+
+| 항목 | 해 보는 방법 | 기대 결과 | 결과 |
+|---|---|---|---|
+| 목록 | `GET /api/guestbook` | 200, `{ count, items }` | |
+| 잘못된 글 | `POST` 이름 빈칸 또는 내용 201자 | 400 `BAD_NAME`/`BAD_MESSAGE` | |
+| 정상 글 | `POST {"name":"…","message":"…"}` | 201, 목록 맨 위에 보임 | |
+| 직접 쓰기 차단 | SQL `begin; set local role anon; insert into public.guestbook …; rollback;` | permission denied | |
+| 키 노출 없음 | 화면 소스·응답 본문에서 `sb_` 찾기 | 없음 | |
+
 ## 공식 문서
 
 - 한국천문연구원 특일 정보: https://www.data.go.kr/data/15012690/openapi.do
@@ -101,3 +145,6 @@ node scripts/dev.mjs --mock  # 연습 모드 → 브라우저에서 http://local
 - Git 연결과 배포: https://vercel.com/docs/git
 - 런타임 로그: https://vercel.com/docs/logs/runtime
 - Hobby 요금제: https://vercel.com/docs/plans/hobby
+- Supabase 행 수준 보안(RLS): https://supabase.com/docs/guides/database/postgres/row-level-security
+- Supabase API 키: https://supabase.com/docs/guides/api/api-keys
+- supabase-js: https://supabase.com/docs/reference/javascript/introduction
