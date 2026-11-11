@@ -125,15 +125,17 @@ node scripts/dev.mjs --mock  # 연습 모드 → 브라우저에서 http://local
 
 ### 검증 기록 (운영 주소)
 
-키를 넣고 다시 배포한 뒤 채웁니다.
+2026-11-11, `https://holiday-api-gules.vercel.app`, Vercel 환경 변수 3개(Production) 추가 후 Redeploy한 배포에서 확인했습니다.
 
 | 항목 | 해 보는 방법 | 기대 결과 | 결과 |
 |---|---|---|---|
-| 목록 | `GET /api/guestbook` | 200, `{ count, items }` | |
-| 잘못된 글 | `POST` 이름 빈칸 또는 내용 201자 | 400 `BAD_NAME`/`BAD_MESSAGE` | |
-| 정상 글 | `POST {"name":"…","message":"…"}` | 201, 목록 맨 위에 보임 | |
-| 직접 쓰기 차단 | SQL `begin; set local role anon; insert into public.guestbook …; rollback;` | permission denied | |
-| 키 노출 없음 | 화면 소스·응답 본문에서 `sb_` 찾기 | 없음 | |
+| 목록 | `GET /api/guestbook` | 200, `{ count, items }` | ✔ 200 `{"count":0,"items":[]}`, `Cache-Control: no-store`, `x-vercel-id: icn1::icn1::…` |
+| 잘못된 글 | `POST` 이름 빈칸 / 내용 201자 | 400 `BAD_NAME`/`BAD_MESSAGE` | ✔ 400 `BAD_NAME`, 400 `BAD_MESSAGE` |
+| 정상 글 | `POST {"name":"점검","message":"운영 주소 점검 (2026-11-11)"}` | 201, 목록 맨 위에 보임 | ✔ 201 `id: 1`, 다시 GET하면 `count: 1`로 맨 위에 보임 |
+| 직접 쓰기 차단 | SQL `begin; set local role anon; insert into public.guestbook …; rollback;` (Supabase MCP) | permission denied | ✔ `42501 permission denied for table guestbook` |
+| 키 노출 없음 | `/`, `/guestbook.html`, GET·POST 응답 본문에서 `sb_` 찾기 | 없음 | ✔ 5곳 모두 0건 |
+
+참고: 처음 Redeploy 때는 변수가 저장되지 않은 상태라 500 `NO_KEY`가 계속 나왔습니다. 변수를 추가할 때는 **Save** 뒤 목록에 이름이 보이는지 확인하고, 그다음에 Redeploy합니다.
 
 ## 공식 문서
 
