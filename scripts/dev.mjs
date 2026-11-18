@@ -1,7 +1,7 @@
 // 수업용 로컬 시험 서버 · 정적 파일(index.html 등)과 api/ 함수를 한 주소에서 함께 엽니다.
 //
 //   node scripts/dev.mjs           실제 호출. .env.local의 DATA_GO_KR_KEY를 읽습니다(없으면 함수가 500을 돌려줍니다)
-//   node scripts/dev.mjs --mock    연습 모드. 공공데이터 대신 tests/fixtures의 예시 응답을 씁니다(인증키 불필요)
+//   node scripts/dev.mjs --mock    연습 모드. 공공데이터 대신 tests/fixtures의 예시 응답을, 오픈하사 대신 정해 둔 추천 세 줄을 씁니다(인증키 불필요)
 //   PORT=4000 node scripts/dev.mjs 다른 포트로 열기 (기본 3000)
 //
 // Vercel과 완전히 같지는 않습니다. CDN 캐시(x-vercel-cache), 함수 지역, 배포 보호, 대시보드 로그가 없습니다.
@@ -42,6 +42,7 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n수업용 로컬 시험 서버 · http://localhost:${PORT}`);
   console.log('- 정적 파일과 api/ 함수를 함께 엽니다. Vercel과 완전히 같지는 않습니다(CDN 캐시·지역·배포 보호 없음).');
   console.log(`- 인증키 DATA_GO_KR_KEY: ${process.env.DATA_GO_KR_KEY ? '있음(값은 표시하지 않음)' : '없음'}`);
+  console.log(`- AI 키 HASA_API_KEY: ${process.env.HASA_API_KEY ? '있음(값은 표시하지 않음)' : '없음'}`);
   console.log(`- 연습 모드: ${MOCK ? '켜짐 · 예시 응답이 있는 달: 2026년 9월(상위 오류)·10월(여러 건)·11월(없음)·12월(한 건)' : '꺼짐'}`);
   console.log('- 끝낼 때는 Ctrl+C\n');
 });
@@ -141,8 +142,14 @@ function installMock() {
   };
   const delayMs = Number(process.env.MOCK_DELAY_MS || 400);
   process.env.DATA_GO_KR_KEY ||= 'practice-mode-key';
+  process.env.HASA_API_KEY ||= 'practice-mode-key';
   globalThis.fetch = async (input, init = {}) => {
     const target = new URL(input instanceof Request ? input.url : String(input));
+    if (target.hostname === 'open.hasa.re.kr') { // AI 추천도 연습 모드에서는 정해 둔 세 줄로 답합니다
+      await wait(Number(process.env.MOCK_AI_DELAY_MS || 1200), init.signal);
+      const content = '1. (연습 모드) 공휴일에 학교 근처 산책하기\n2. (연습 모드) 친구와 전시회 다녀오기\n3. (연습 모드) 밀린 과제 미리 끝내기';
+      return Response.json({ choices: [{ message: { role: 'assistant', content } }], usage: { total_tokens: 0 } });
+    }
     if (target.hostname !== 'apis.data.go.kr') return realFetch(input, init);
     await wait(delayMs, init.signal);
     const month = `${target.searchParams.get('solYear')}-${target.searchParams.get('solMonth')}`;

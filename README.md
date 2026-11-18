@@ -137,6 +137,42 @@ node scripts/dev.mjs --mock  # 연습 모드 → 브라우저에서 http://local
 
 참고: 처음 Redeploy 때는 변수가 저장되지 않은 상태라 500 `NO_KEY`가 계속 나왔습니다. 변수를 추가할 때는 **Save** 뒤 목록에 이름이 보이는지 확인하고, 그다음에 Redeploy합니다.
 
+## 8. AI 추천 (12주차 · 오픈하사)
+
+공휴일 결과 아래의 **'AI 추천 받기'** 버튼을 누르면, 함수가 그달 공휴일을 근거로 오픈하사(Open HASA)의 `gemma-4-31b` 모델에게 '이 달에 해 볼 만한 일' 세 가지를 받아 보여 줍니다.
+
+```text
+버튼 → fetch('/api/suggest?year=2026&month=11')
+  → api/suggest.js: 입력 검사 → HASA_API_KEY 확인 → api/holidays.js로 공휴일 조회
+  → 오픈하사 POST https://open.hasa.re.kr/v1/chat/completions (지시문 + 공휴일 목록, max_tokens 300, 20초 제한)
+  → 번호 붙인 세 줄인지 검사(어긋나면 한 번 더) → { suggestions: [세 줄] } · CDN에 하루 보관
+```
+
+| 파일 | 역할 |
+|---|---|
+| `api/suggest.js` | 지시문(역할·형식·근거·금지), 오픈하사 호출, 형식 검사, 오류별 안내, 하루 캐시 |
+| `index.html` | 'AI 추천 받기' 버튼, 불러오는 중·결과·오류(다시 시도) 상태, 답이 올 때까지 버튼 잠금 |
+| `tests/suggest.test.mjs` | 가짜 오픈하사로 정상·400·키 없음·429·시간 초과·형식 오류·키 거절·모델 이름 오류 확인 |
+
+**환경 변수**: Vercel **Settings → Environment Variables**에 `HASA_API_KEY` = 오픈하사 개발키(`sk-dev-…`, Sensitive), Production·Preview 체크 → **Redeploy**. 키를 넣기 전 배포에서 `/api/suggest`가 500(`NO_KEY`)인 것은 정상입니다.
+
+**실패했을 때의 응답**
+
+| 상황 | 상태 코드 | 화면 안내 |
+|---|---|---|
+| 잘못된 연·월 | 400 (`BAD_YEAR`/`BAD_MONTH`) | 고칠 방법 |
+| 키 없음 / 키 거절 | 500 (`NO_KEY`/`AI_KEY`) | 운영자 설정 문제 |
+| 한도 초과 | 429 (`AI_LIMIT`) | 잠시 뒤 다시, 하루 500건 한도 |
+| 시간 초과(20초) | 504 (`AI_TIMEOUT`) | 다시 시도 버튼 |
+| 세 줄 형식이 아님(두 번) | 502 (`AI_FORMAT`) | 다시 시도 버튼 |
+| 모델 이름 오류 | 502 (`AI_MODEL`) | `MODEL` 상수 확인 |
+
+**개인정보와 비용**
+- AI에 보내는 것은 연·월과 공공데이터의 공휴일 목록뿐입니다. 사용자가 쓴 글, 이름·연락처·학번은 보내지 않습니다. 화면에도 이 사실과 'AI 답은 틀릴 수 있음'을 적었습니다.
+- 추천 결과는 서버에 저장하지 않습니다(CDN이 같은 연·월의 응답을 하루 보관할 뿐입니다).
+- 개발키 한도(분당 10회, 하루 500건)를 아끼려고 연·월마다 하루 캐시하고, 버튼 연타를 막고, `max_tokens`로 답 길이를 제한합니다.
+- 연습 모드(`node scripts/dev.mjs --mock`)에서는 오픈하사 대신 정해 둔 세 줄로 답해 키 없이 화면을 확인할 수 있습니다.
+
 ## 공식 문서
 
 - 한국천문연구원 특일 정보: https://www.data.go.kr/data/15012690/openapi.do
@@ -147,6 +183,7 @@ node scripts/dev.mjs --mock  # 연습 모드 → 브라우저에서 http://local
 - Git 연결과 배포: https://vercel.com/docs/git
 - 런타임 로그: https://vercel.com/docs/logs/runtime
 - Hobby 요금제: https://vercel.com/docs/plans/hobby
+- 오픈하사(Open AI Service Hub): https://open.hasa.re.kr
 - Supabase 행 수준 보안(RLS): https://supabase.com/docs/guides/database/postgres/row-level-security
 - Supabase API 키: https://supabase.com/docs/guides/api/api-keys
 - supabase-js: https://supabase.com/docs/reference/javascript/introduction
