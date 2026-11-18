@@ -173,6 +173,19 @@ node scripts/dev.mjs --mock  # 연습 모드 → 브라우저에서 http://local
 - 개발키 한도(분당 10회, 하루 500건)를 아끼려고 연·월마다 하루 캐시하고, 버튼 연타를 막고, `max_tokens`로 답 길이를 제한합니다.
 - 연습 모드(`node scripts/dev.mjs --mock`)에서는 오픈하사 대신 정해 둔 세 줄로 답해 키 없이 화면을 확인할 수 있습니다.
 
+### 검증 기록 (운영 주소)
+
+2026-11-18, `https://holiday-api-gules.vercel.app`, Vercel 환경 변수 `HASA_API_KEY`(Production, Secret) 추가 후 `main` Push(f8129de)로 만든 배포에서 확인했습니다.
+
+| 항목 | 해 보는 방법 | 기대 결과 | 결과 |
+|---|---|---|---|
+| 정상 | `GET /api/suggest?year=2026&month=10` | 200과 추천 세 줄 | ✔ 200, 세 줄, `model: gemma-4-31b`, 335토큰, 약 1.7초, `x-vercel-id: icn1::icn1::…` |
+| 공휴일 없는 달 | `GET /api/suggest?year=2026&month=11` | 200과 추천 세 줄 | ✔ 200, `holidayCount: 0`, 세 줄 |
+| 캐시 | 같은 연·월을 다시 부름 | `x-vercel-cache` MISS → HIT | ✔ MISS(1.7초) → HIT(0.6초) |
+| 잘못된 입력 | `month=13`, `month=abc` | 400 | ✔ 400 `BAD_MONTH` 두 번 |
+| 키 노출 없음 | `/`, `/index.html`, 정상·400 응답 본문에서 `sk-` 찾기 | 없음 | ✔ 4곳 모두 0건 |
+| 화면 안내 | 운영 주소에서 2026년 12월 조회 → 'AI 추천 받기' | 불러오는 중 → 세 줄, 안내 문구 | ✔ 세 줄과 'AI에는 공휴일 목록만 보냅니다 · 틀릴 수 있습니다' 안내, 오류 문구('AI 추천을 받지 못했습니다')는 화면 코드에 있음 |
+
 ## 공식 문서
 
 - 한국천문연구원 특일 정보: https://www.data.go.kr/data/15012690/openapi.do
